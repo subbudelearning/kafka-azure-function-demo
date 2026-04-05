@@ -48,6 +48,7 @@ __pycache__/
 __blobstorage__
 __queuestorage__
 __azurite_db*__.json.venv
+__azurite_db*__.json
 local.settings.json
 __pycache__
 .python_version

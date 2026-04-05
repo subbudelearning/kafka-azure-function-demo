@@ -17,7 +17,7 @@ KAFKA_CONFIG = {
     "sasl.mechanisms":   "PLAIN",
     "sasl.username":     os.environ["KAFKA_API_KEY"],
     "sasl.password":     os.environ["KAFKA_API_SECRET"],
-    "group.id":          "azure-function-group",
+    "group.id":          "azure-function-group_1",
     "auto.offset.reset": "earliest",
 }
 
