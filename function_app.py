@@ -46,8 +46,13 @@ def _build_deserializer() -> JSONDeserializer:
     )
 
 
+#@app.timer_trigger(
+#    schedule="*/10 * * * * *",
+#    arg_name="timer",
+#    run_on_startup=True,
+#)
 @app.timer_trigger(
-    schedule="*/10 * * * * *",
+    schedule="0 0 31 2 *",  # invalid / never runs in practice
     arg_name="timer",
     run_on_startup=True,
 )
