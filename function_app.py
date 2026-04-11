@@ -1,7 +1,6 @@
 import azure.functions as func
 import logging
 import os
-from confluent_kafka import Consumer, KafkaError
 from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.json_schema import JSONDeserializer
 from confluent_kafka.serialization import SerializationContext, MessageField
@@ -17,7 +16,7 @@ KAFKA_CONFIG = {
     "sasl.mechanisms":   "PLAIN",
     "sasl.username":     os.environ["KAFKA_API_KEY"],
     "sasl.password":     os.environ["KAFKA_API_SECRET"],
-    "group.id":          "azure-function-group_1",
+    "group.id":          os.getenv("KAFKA_CONSUMER_GROUP", "azure-function-group_1"),
     "auto.offset.reset": "earliest",
 }
 
@@ -29,7 +28,15 @@ SR_CONFIG = {
     ),
 }
 
-TOPIC = "testorders"
+TOPIC = os.getenv("KAFKA_TOPIC", "testorders")
+BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP")
+CONSUMER_GROUP = os.getenv("KAFKA_CONSUMER_GROUP", "azure-function-group_1")
+USERNAME = os.getenv("KAFKA_API_KEY")
+PASSWORD = os.getenv("KAFKA_API_SECRET")
+PROTOCOL = os.getenv("KAFKA_PROTOCOL", "SASL_SSL")
+SCHEMA_REGISTRY_URL = os.getenv("SCHEMA_REGISTRY_URL")
+SR_API_KEY = os.getenv("SR_API_KEY")
+SR_API_SECRET = os.getenv("SR_API_SECRET")
 
 
 def _build_deserializer() -> JSONDeserializer:
@@ -40,77 +47,72 @@ def _build_deserializer() -> JSONDeserializer:
     """
     sr_client = SchemaRegistryClient(SR_CONFIG)
     return JSONDeserializer(
-        schema_str=None,                      # fetch from registry automatically
+        schema_str=None,
         schema_registry_client=sr_client,
-        from_dict=lambda data, _ctx: data,    # return raw dict as-is
+        from_dict=lambda data, _ctx: data,
     )
 
 
-#@app.timer_trigger(
-#    schedule="*/10 * * * * *",
-#    arg_name="timer",
-#    run_on_startup=True,
-#)
-@app.timer_trigger(
-    schedule="0 0 31 2 *",  # invalid / never runs in practice
-    arg_name="timer",
-    run_on_startup=True,
+@app.kafka_trigger(
+    arg_name="msg",
+    topic=TOPIC,
+    broker_list=BOOTSTRAP,
+    consumer_group=CONSUMER_GROUP,
+    username=USERNAME,
+    password=PASSWORD,
+    protocol=PROTOCOL,
+    data_type="binary",
+    schema_registry_url=SCHEMA_REGISTRY_URL,
+    schema_registry_username=SR_API_KEY,
+    schema_registry_password=SR_API_SECRET,
 )
-def poll_kafka(timer: func.TimerRequest) -> None:
-    """Runs every 10 seconds, polls Kafka, schema fetched from registry."""
-    logging.info("Polling Kafka topic (JSON_SR — schema from registry)...")
-
-    deserializer = _build_deserializer()
-    consumer     = Consumer(KAFKA_CONFIG)
-    consumer.subscribe([TOPIC])
+def kafka_handler(msg: func.KafkaEvent) -> None:
+    """Kafka-triggered function that processes Kafka messages with Schema Registry."""
+    logging.info(
+        "Kafka event received: topic=%s partition=%s offset=%s key=%s",
+        msg.topic,
+        msg.partition,
+        msg.offset,
+        msg.key,
+    )
 
     try:
-        for _ in range(20):
-            msg = consumer.poll(timeout=1.0)
+        deserializer = _build_deserializer()
+        record = deserializer(
+            msg.get_body(),
+            SerializationContext(TOPIC, MessageField.VALUE),
+        )
 
-            if msg is None:
-                continue
+        if record is None:
+            logging.warning("Deserializer returned None — skipping")
+            return
 
-            if msg.error():
-                if msg.error().code() != KafkaError._PARTITION_EOF:
-                    logging.error(f"Kafka error: {msg.error()}")
-                continue
+        if "payload" in record:
+            record = record["payload"]
 
-            record = deserializer(
-                msg.value(),
-                SerializationContext(TOPIC, MessageField.VALUE),
-            )
+        if not isinstance(record, dict):
+            logging.warning("Kafka payload is not a JSON object; skipping: %s", record)
+            return
 
-            if record is None:
-                logging.warning("Deserialiser returned None — skipping")
-                continue
+        messages.append({
+            "id":         record.get("id"),
+            "customer":   record.get("customer"),
+            "amount":     record.get("amount"),
+            "updated_at": record.get("updated_at"),
+        })
 
-            # Unwrap JDBC envelope if present
-            if "payload" in record:
-                record = record["payload"]
+        if len(messages) > 100:
+            messages[:] = messages[-100:]
 
-            messages.append({
-                "id":         record.get("id"),
-                "customer":   record.get("customer"),
-                "amount":     record.get("amount"),
-                "updated_at": record.get("updated_at"),
-            })
-
-            logging.info(f"Consumed: {record}")
+        logging.info("Consumed Kafka record: %s", record)
 
     except Exception as e:
-        logging.error(f"Error during Kafka poll: {e}", exc_info=True)
+        logging.error("Failed to deserialize Kafka message: %s", e, exc_info=True)
 
-    finally:
-        consumer.close()
-
-    if len(messages) > 100:
-        messages[:] = messages[-100:]
 
 @app.route(route="orders", methods=["GET"], auth_level=func.AuthLevel.ANONYMOUS)
 def show_orders(req: func.HttpRequest) -> func.HttpResponse:
     """HTTP endpoint — returns an HTML page showing consumed messages."""
-
     rows = ""
     for m in reversed(messages):
         rows += f"""
@@ -122,7 +124,7 @@ def show_orders(req: func.HttpRequest) -> func.HttpResponse:
         </tr>"""
 
     if not rows:
-        rows = '<tr><td colspan="4" style="text-align:center;color:#888">No messages yet — waiting for Kafka poll...</td></tr>'
+        rows = '<tr><td colspan="4" style="text-align:center;color:#888">No messages yet — waiting for Kafka events...</td></tr>'
 
     html = f"""<!DOCTYPE html>
 <html>
