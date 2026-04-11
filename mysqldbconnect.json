@@ -1,0 +1,108 @@
+{
+  "connector": {
+    "id": "lcc-xjvwrg",
+    "name": "MicrosoftSqlServerSourceConnector_0",
+    "status": "RUNNING",
+    "type": "source"
+  },
+  "tasks": [
+    {
+      "task": 0,
+      "state": "RUNNING"
+    }
+  ],
+  "configs": [
+    {
+      "config": "kafka.region",
+      "value": "westus2"
+    },
+    {
+      "config": "mode",
+      "value": "incrementing"
+    },
+    {
+      "config": "name",
+      "value": "MicrosoftSqlServerSourceConnector_0"
+    },
+    {
+      "config": "topic.prefix",
+      "value": "test"
+    },
+    {
+      "config": "kafka.endpoint",
+      "value": "SASL_SSL://pkc-6vz38.westus2.azure.confluent.cloud:9092"
+    },
+    {
+      "config": "cloud.provider",
+      "value": "azure"
+    },
+    {
+      "config": "incrementing.column.mapping",
+      "value": ".*\\.orders.*:id"
+    },
+    {
+      "config": "kafka.api.key",
+      "value": "****************"
+    },
+    {
+      "config": "output.data.format",
+      "value": "JSON_SR"
+    },
+    {
+      "config": "tasks.max",
+      "value": "1"
+    },
+    {
+      "config": "cloud.environment",
+      "value": "prod"
+    },
+    {
+      "config": "connection.password",
+      "value": "****************"
+    },
+    {
+      "config": "query",
+      "value": ""
+    },
+    {
+      "config": "transaction.isolation.mode",
+      "value": "READ_COMMITTED"
+    },
+    {
+      "config": "connection.port",
+      "value": "1433"
+    },
+    {
+      "config": "connector.class",
+      "value": "MicrosoftSqlServerSource"
+    },
+    {
+      "config": "db.name",
+      "value": "testkafka-sql-db-4815477"
+    },
+    {
+      "config": "kafka.api.secret",
+      "value": "****************"
+    },
+    {
+      "config": "kafka.auth.mode",
+      "value": "KAFKA_API_KEY"
+    },
+    {
+      "config": "poll.interval.ms",
+      "value": "300000"
+    },
+    {
+      "config": "table.include.list",
+      "value": ".*orders*"
+    },
+    {
+      "config": "connection.host",
+      "value": "testkafka.database.windows.net"
+    },
+    {
+      "config": "connection.user",
+      "value": "confluent_user"
+    }
+  ]
+}
